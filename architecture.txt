@@ -1,0 +1,23 @@
+prom-yml-sync-scraper/
+├── docker-compose.yml       # Оркестрація контейнерів (сервіс парсингу + cron)
+├── Dockerfile               # Інструкція збірки образу
+├── requirements.txt         # Залежності (requests, BeautifulSoup, lxml, pandas)
+├── .env                     # Конфігурація (шляхи, налаштування логування)
+├── main.py                  # Точка входу: Повний парсинг (запускається 1 раз)
+├── updater.py               # Точка входу: Швидкий парсинг цін/наявності (для cron)
+├── config/
+│   ├── category_map.json    # Мапа категорій (Категорія донора -> ID категорії Prom)
+│   └── target_brands.json   # Список вибраних брендів для фільтрації
+├── src/
+│   ├── scrapers/            # Модулі збору даних
+│   │   ├── base_scraper.py  # Базовий клас з методами запитів та обробки помилок
+│   │   ├── solo.py          # Логіка парсингу solo.ua
+│   │   └── chernomor.py     # Логіка парсингу chernomor-cosmetics.com.ua
+│   ├── processors/          # Модулі обробки та нормалізації
+│   │   ├── text_cleaner.py  # Очищення описів від чужих контактів/посилань
+│   │   └── variations.py    # Логіка групування різновидів (group_id, sku, об'єми)
+│   └── exporters/
+│       └── yml_builder.py   # Побудова правильної XML-структури під Prom.ua
+└── data/
+    ├── input/               # Вхідні XLS-прайси від замовника (як база артикулів)
+    └── output/              # Згенерований prom_feed.xml (файл, який забиратиме Пром)
