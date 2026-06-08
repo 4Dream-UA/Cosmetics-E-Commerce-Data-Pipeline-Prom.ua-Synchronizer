@@ -15,7 +15,7 @@ prom-yml-sync-scraper/
 │   │   └── chernomor.py     # Логіка парсингу chernomor-cosmetics.com.ua
 │   ├── processors/          # Модулі обробки та нормалізації
 │   │   ├── text_cleaner.py  # Очищення описів від чужих контактів/посилань
-│   │   └── variations.py    # Логіка групування різновидів (group_id, sku, об'єми)
+│   │   └── crawler.py       # Логіка збирання посилань за брендом
 │   └── exporters/
 │       └── yml_builder.py   # Побудова правильної XML-структури під Prom.ua
 └── data/
