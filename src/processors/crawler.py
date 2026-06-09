@@ -2,8 +2,12 @@ import asyncio
 import aiohttp
 import logging
 from typing import Dict, List, Optional
-from urllib.parse import urljoin
+from urllib.parse import urljoin, quote_plus
 from bs4 import BeautifulSoup
+import re
+import json
+
+from scrapers.base_scraper import AsyncBaseScraper
 
 
 class AsyncSoloCrawler:
@@ -130,5 +134,148 @@ class AsyncSoloCrawler:
                 href = img_link.get('href')
                 if href:
                     links.append(href)
+
+        return links
+
+
+class AsyncChernomorCrawler(AsyncBaseScraper):
+    """
+    Асинхронний краулер для chernomor-cosmetics.ua.
+    Optimized Senior Edition:
+    - Обхід JS Challenge (Cloudflare/Horoshop Anti-Bot).
+    - Розумна асинхронність (Staggered starts) для швидкості без бану.
+    - Спільне використання розблокованої сесії.
+    """
+
+    def __init__(self):
+        super().__init__(concurrency_limit=4)
+        self.domain = "https://chernomor-cosmetics.ua"
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+        self.delay = 0.5
+        self.max_retries = 3
+
+    async def get_soup(self, url: str, **kwargs) -> Optional[BeautifulSoup]:
+        """
+        Перехоплювач відповідей. Аналізує, що віддав сервер:
+        реальний HTML, AJAX-JSON або сторінку-заглушку з JS Challenge.
+        """
+        html = await self.fetch_html(url, **kwargs)
+        if not html:
+            return None
+
+        # ==========================================
+        # ХАК 1: ОБХІД ЗАХИСТУ JS CHALLENGE
+        # ==========================================
+        if "challenge_passed=" in html:
+            self.logger.warning("⚠️ Сервер видав Anti-Bot заглушку (JS Challenge). Зламуємо...")
+            match = re.search(r'const defaultHash = ["\']([^"\']+)["\']', html)
+            if match:
+                hash_val = match.group(1)
+                self.logger.info("🔓 Хеш знайдено! Встановлюємо cookie та повторюємо запит...")
+
+                self.session.cookie_jar.update_cookies({'challenge_passed': hash_val})
+                await asyncio.sleep(0.5)
+
+                html = await self.fetch_html(url, **kwargs)
+                if not html:
+                    return None
+            else:
+                self.logger.error("❌ Не вдалося знайти defaultHash у скрипті захисту.")
+
+        # ==========================================
+        # ХАК 2: РОЗПАКУВАННЯ AJAX ПАГІНАЦІЇ ХОРОШОПУ
+        # ==========================================
+        html_stripped = html.strip()
+        if html_stripped.startswith('{') and html_stripped.endswith('}'):
+            try:
+                data = json.loads(html_stripped)
+                content = data.get('content') or data.get('html') or data.get('data', '')
+                if content:
+                    self.logger.info("📦 Розпаковано прихований AJAX JSON-відповідь.")
+                    html = content
+            except json.JSONDecodeError:
+                pass
+
+        return BeautifulSoup(html, "lxml")
+
+    async def get_product_links(self, target_brands: List[str]) -> Dict[str, List[str]]:
+        self.logger.info("🚀 Запускаємо швидкісний бронебійний парсинг для Chernomor...")
+        result_links = {brand: [] for brand in target_brands}
+
+        await self.get_soup(self.domain)
+        await asyncio.sleep(0.5)
+
+        tasks = []
+        for i, brand in enumerate(target_brands):
+            clean_brand = re.sub(r'\d+', '', brand).strip()
+            stagger_delay = i * 1.5
+
+            task = asyncio.create_task(
+                self._search_and_scrape(brand, clean_brand, stagger_delay)
+            )
+            tasks.append(task)
+
+        results = await asyncio.gather(*tasks)
+
+        for brand, links in results:
+            result_links[brand] = links
+            self.logger.info("==> ФІНАЛ: Зібрано %d ЧИСТИХ посилань для %s", len(links), brand)
+
+        return result_links
+
+    async def _search_and_scrape(self, original_brand: str, search_brand: str, stagger_delay: float) -> tuple:
+        if stagger_delay > 0:
+            await asyncio.sleep(stagger_delay)
+
+        product_links = []
+        page = 1
+
+        while True:
+            if page == 1:
+                current_url = f"{self.domain}/kataloh/search/?q={quote_plus(search_brand)}"
+            else:
+                current_url = f"{self.domain}/kataloh/search/filter/page={page}/?q={quote_plus(search_brand)}"
+
+            self.logger.info("[%s] Парсинг сторінки %d: %s", original_brand, page, current_url)
+
+            soup = await self.get_soup(current_url)
+            if not soup:
+                self.logger.warning("[%s] Сторінка недоступна. Перериваємо.", original_brand)
+                break
+
+            page_links = self._extract_links_from_soup(soup, search_brand)
+
+            if not page_links:
+                self.logger.info("[%s] Товари на сторінці %d закінчилися (пуста сітка).", original_brand, page)
+                break
+
+            product_links.extend(page_links)
+
+            page += 1
+            if page > 50:
+                break
+
+        return original_brand, list(set(product_links))
+
+    def _extract_links_from_soup(self, soup: BeautifulSoup, search_brand: str) -> List[str]:
+        links = []
+        brand_lower = search_brand.lower()
+
+        cards = soup.select('.catalogCard, .product-layout, .product-item, .item')
+
+        for card in cards:
+            card_text = card.get_text(separator=' ', strip=True).lower()
+            a_tag = card.select_one('.catalogCard-title, .product-title, a.name, h3 a, h4 a, a')
+
+            if a_tag and a_tag.get('href'):
+                href = a_tag.get('href')
+                full_url = urljoin(self.domain, href)
+
+                brand_words = [w for w in brand_lower.split() if len(w) > 3]
+
+                if brand_lower in card_text or brand_lower in href.lower() or any(w in card_text for w in brand_words):
+                    if not any(skip in full_url for skip in ['cart', 'compare', 'wishlist', 'login', 'action']):
+                        links.append(full_url)
 
         return links
