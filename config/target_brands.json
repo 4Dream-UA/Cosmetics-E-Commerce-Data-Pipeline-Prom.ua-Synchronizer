@@ -1,0 +1,19 @@
+{
+  "solo": {
+    "brands": [
+      "BARBER", "BAREX", "CONTEMPORA", "HAIRMED", "JJ", "KayPro", "L'Alga",
+      "NOOK", "Oceanyst", "pH", "Previa", "PURING", "WIL'NA"
+    ]
+  },
+  "chernomor": {
+    "brands": [
+      "ARTISTO",
+      "ELEA",
+      "Coiffance",
+      "Erayba",
+      "Kleral System",
+      "Lovien",
+      "Abril"
+    ]
+  }
+}
