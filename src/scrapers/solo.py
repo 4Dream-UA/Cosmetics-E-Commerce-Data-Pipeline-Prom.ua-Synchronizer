@@ -8,7 +8,7 @@ from typing import Optional, List
 from bs4 import BeautifulSoup
 from dataclasses import dataclass, field
 
-from scrapers.base_scraper import AsyncBaseScraper
+from src.scrapers.base_scraper import AsyncBaseScraper
 
 
 # ==========================================

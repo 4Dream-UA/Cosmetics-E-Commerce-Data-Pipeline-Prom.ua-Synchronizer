@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from urllib.parse import urljoin
 from playwright.async_api import async_playwright, Page
 
-from scrapers.base_scraper import AsyncBaseScraper
+from src.scrapers.base_scraper import AsyncBaseScraper
 
 
 # ==========================================

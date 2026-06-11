@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 import re
 import json
 
-from scrapers.base_scraper import AsyncBaseScraper
+from src.scrapers.base_scraper import AsyncBaseScraper
 
 
 class AsyncSoloCrawler:

@@ -1,0 +1,8 @@
+version: '3.8'
+
+services:
+  prom-scraper:
+    build: .
+    container_name: prom_scraper_bot
+    volumes:
+      - ./:/app
